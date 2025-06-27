@@ -38,7 +38,9 @@ const config: Config = {
     locales: ["en"],
   },
 
-  plugins: [],
+  plugins: [
+    require.resolve("./plugins/custom-webpack-config"),
+  ],
 
   presets: [
     [
@@ -63,6 +65,7 @@ const config: Config = {
     image: "img/open_graph_preview.jpg",
     navbar: {
       title: "StreamElements Docs",
+      items: [{ to: "/api", label: "API Reference", position: "left" }],
     },
     algolia: {
       appId: 'WL7E3ZBLD0',

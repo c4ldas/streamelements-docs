@@ -1,120 +1,144 @@
-import React from 'react';
+// TO DO:
+// When on the API page, if we change to light mode, half the page keeps dark mode. Most of the background is dark.
+// After a refresh, it goes back to light mode.
+
 import Layout from '@theme/Layout';
-import Head from '@docusaurus/Head';
-import BrowserOnly from '@docusaurus/BrowserOnly';
-import { DyteSpinner } from '@dytesdk/react-ui-kit';
-import { useHistory } from '@docusaurus/router';
-import clsx from 'clsx';
+import { useEffect, useRef } from 'react';
+import '@stoplight/elements/styles.min.css';
 
-import useBreakpoint from '../lib/useBreakpoint';
-import SectionsMenu from '../components/SectionsMenu';
-import RunInPostmanButton from '../components/RunInPostmanButton';
-import { Monitor } from 'react-feather';
-import Link from '@docusaurus/Link';
-import { APIIcon } from '../icons';
+// Maps for text color and background color replacements
+// Stoplight color -> new color
+const textColorMap = {
+  'rgb(24, 54, 145)': 'rgba(155, 101, 255, 1)',
+  'rgb(111, 66, 193)': 'rgba(155, 101, 255, 1)',
+  'rgb(3, 47, 98)': 'rgba(0, 173, 196, 1)',
+  'rgb(51, 51, 51)': 'rgb(91, 91, 91)',
+  'rgb(0, 92, 197)': 'rgb(0, 119, 255)',
+};
 
-function APIElement({ layout = 'sidebar', currentVersion = 'v1' }) {
+const backgroundColorMap = {
+  // 'rgb(26, 33, 45)': 'rgb(27, 27, 29)',   // side panel
+  // 'rgb(14, 19, 27)': 'rgb(27, 27, 29)',   // main body
+
+  'rgb(26, 33, 45)': 'var(--ifm-background-color)',
+  'rgb(14, 19, 27)': 'var(--ifm-background-color)', 
+  // 'rgba(21, 130, 193, .25)': 'rgb(21, 130, 193)', // selected item
+};
+
+
+export default function APIReference() {
+  const container = useRef(null);
+
+  // custom colour patches
+  useRepaintColors(container);
+  useSwapPrimaryTint(container);
+
+  // During static/SSR pass we can’t access window, so just show a placeholder
+  if (typeof window === 'undefined') {
+    return (
+      <Layout title="API Reference">
+        <p>Loading API Reference…</p>
+      </Layout>
+    );
+  }
+
+  // client-side only
+  const { API } = require('@stoplight/elements');
+
   return (
-    <BrowserOnly
-      fallback={
-        <div className="loading-container">
-          <DyteSpinner />
-        </div>
-      }
-    >
-      {() => {
-        // eslint-disable-next-line no-undef, @typescript-eslint/no-var-requires
-        const { API } = require('@stoplight/elements');
-
-        return (
-          <div className={clsx('elements-container', layout)}>
-            <API
-              className="stacked"
-              apiDescriptionUrl={`/api/${currentVersion}.yaml`}
-              basePath="/"
-              router="hash"
-              layout={layout}
-              hideSchemas
-              hideInternal
-            />
-          </div>
-        );
-      }}
-    </BrowserOnly>
+    <Layout title="API Reference">
+      <div
+        ref={container}
+        id="elements-content"
+        style={{ backgroundColor: 'var(--ifm-background-color)' }}
+      >
+        <API
+          apiDescriptionUrl="/api.yaml"
+          router="hash"
+          layout="sidebar"
+          hideSchemas
+        />
+      </div>
+    </Layout>
   );
 }
 
-export default function Home() {
-  const router = useHistory();
-  const size = useBreakpoint();
 
-  const location = router.location;
+function useRepaintColors(root) {
+  useEffect(() => {
+    if (!root.current) return;
 
-  const url = new URL(
-    `https://docs.dyte.io${location.pathname}${location.search}`,
-  );
+    const repaint = () => {
+      /* 1- repaint everything already inside the map logic */
+      root.current.querySelectorAll('*').forEach(el => {
+        const cs = getComputedStyle(el)
 
-  const currentVersion = url.searchParams.get('v') || 'v2';
+        const text = cs.color
+        if (textColorMap[text]) el.style.color = textColorMap[text]
 
-  return (
-    <Layout
-      title={`API ${currentVersion === 'v2' ? 'v2 ' : ''}Documentation`}
-      description={
-        currentVersion === 'v2'
-          ? "Dive into Dyte's API v2 documentation, offering advanced features and functionalities."
-          : "Explore the comprehensive API documentation provided by Dyte. Learn how to integrate and leverage Dyte's API."
+        const bg = cs.backgroundColor
+        if (backgroundColorMap[bg]) el.style.backgroundColor = backgroundColorMap[bg]
+      })
+    }
+
+    repaint();
+
+    const observer = new MutationObserver(repaint);
+    observer.observe(root.current, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => observer.disconnect();
+  }, [root]);
+}
+
+
+function useSwapPrimaryTint(root) {
+  const prev = useRef(null)
+
+  useEffect(() => {
+    const host = root.current
+    if (!host) return
+
+    const promote = node => {
+      if (prev.current && prev.current !== node) {
+        prev.current.style.backgroundColor = 'var(--ifm-background-color)'
       }
-      noFooter
-      wrapperClassName="api-reference"
-    >
-      <Head>
-        {/* Load styles for Stoplight Elements */}
-        <title>API Documentation | Dyte Docs</title>
-        <link rel="preload" href="/assets/css/elements.min.css" as="style" />
-        <link rel="stylesheet" href="/assets/css/elements.min.css" />
-        <meta
-          name="description"
-          content="Explore the comprehensive API documentation provided by Dyte. Learn how to integrate and leverage Dyte's API."
-        ></meta>
-      </Head>
 
-      <div className="flex flex-col items-center justify-center gap-4 border-b py-12 text-sm lg:hidden">
-        <Monitor className="h-12 w-12" />
-        This page is best viewed in a desktop browser.
-      </div>
+      node.classList.remove('sl-bg-primary-tint');
+      node.style.backgroundColor = 'var(--ifm-navbar-background-color)';
 
-      <div className="header">
-        <h1 className="mb-0 flex items-center gap-2 text-sm font-semibold lg:text-lg">
-          <APIIcon className="hidden h-8 lg:block" />
-          REST API
-        </h1>
-        <div className="aside">
-          {currentVersion === 'v2' && (
-            <Link
-              href="/release-notes/rest-api"
-              className="no-underline-links text-xs"
-            >
-              Release Notes
-            </Link>
-          )}
-          {size === 'lg' && <RunInPostmanButton />}
-          <SectionsMenu
-            defaultValue={currentVersion}
-            values={[
-              { name: 'v1', docId: 'v1' },
-              { name: 'v2', docId: 'v2' },
-            ]}
-            onValueChange={(version) => {
-              router.push(`/api/?v=${version}`);
-            }}
-            className="compact"
-          />
-        </div>
-      </div>
-      <APIElement
-        layout={size === 'sm' ? 'stacked' : 'sidebar'}
-        currentVersion={currentVersion}
-      />
-    </Layout>
-  );
+      prev.current = node
+    }
+
+    /* 1 — initial scan (in case it’s already there) */
+    host.querySelectorAll('.sl-bg-primary-tint').forEach(promote)
+
+    /* 2 — watch future DOM changes */
+    const obs = new MutationObserver(muts => {
+      muts.forEach(m => {
+        m.addedNodes.forEach(n => {
+          if (n.nodeType !== 1) return
+          if (n.classList.contains('sl-bg-primary-tint')) promote(n)
+          n.querySelectorAll?.('.sl-bg-primary-tint').forEach(promote)
+        })
+      })
+    })
+    obs.observe(host, { childList: true, subtree: true })
+
+    /* 3 — update after every click (wait a frame so Stoplight updates first) */
+    const onClick = () =>
+      requestAnimationFrame(() => {
+        const current = host.querySelector('.sl-bg-primary-tint')
+        if (current) promote(current)
+      })
+    host.addEventListener('click', onClick, true)
+
+    return () => {
+      obs.disconnect()
+      host.removeEventListener('click', onClick, true)
+    }
+  }, [root])
 }
